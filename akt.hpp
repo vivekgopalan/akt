@@ -76,7 +76,8 @@ int admix_main(int argc,char **argv);
 int metafreq_main(int argc,char **argv);
 int tag_main(int argc,char **argv);
 int tdt_main(int argc,char **argv);
-
+int knockout_main(int argc,char **argv);
+    
 void die(const string& s);
 
 int grm(bcf_srs_t *sr);

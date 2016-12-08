@@ -99,7 +99,9 @@ int main(int argc, char **argv) {
     tag_main(argc, argv); 
   } else if(((string)argv[1]) == "tdt") {
     tdt_main(argc, argv); 
-  } 
+  } else if(((string)argv[1]) == "knockout") {
+      knockout_main(argc, argv);
+  }   
   // else if(((string)argv[1]) == "grm") {
   //   grm_main(argc, argv); 
   // }   
