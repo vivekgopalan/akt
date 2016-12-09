@@ -4,6 +4,20 @@
 KSTREAM_INIT(gzFile, gzread, 16384)
 using namespace std;
 
+static void usage()
+{ 
+    fprintf(stderr, "\n");
+    fprintf(stderr, "About:   akt knockout - profiles duo/trios\n");
+    fprintf(stderr, "Usage:   akt knockout input.bcf -p pedigree.fam -G genes.bed.gz\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "    -p, --pedigree              pedigree information in plink .fam format\n");
+    fprintf(stderr, "    -i, --include               your definition of LoF goes here eg. 'INFO/CSQ[*]~\"stop_gained\" | INFO/CSQ[*]~\"frameshift_variant\" | INFO/CSQ[*]~\"splice_acceptor_variant\" | INFO/CSQ[*]~\"splice_donor_variant\"\n");
+    fprintf(stderr, "    -G, --genes                 <file>   four column bed file containing your gene list\n");
+    fprintf(stderr, "    -P, --phased                 require variants to be phased trans to be a knockout \n");
+    exit(1);
+}
+
 
 Gene::Gene(const string & gene_name,int rid,int start,int stop)
 {
@@ -78,26 +92,6 @@ GeneList::GeneList(char *fname,bcf_hdr_t *hdr)
     cerr<<"found "<<count<<endl;
 }
 	
-
-/**
- * @name    usage
- * @brief   print out options
- *
- * List of input options
- *
- */
-static void usage()
-{ 
-    fprintf(stderr, "\n");
-    fprintf(stderr, "About:   akt knockout - profiles duo/trios\n");
-    fprintf(stderr, "Usage:   akt knockout input.bcf -p pedigree.fam -G genes.bed.gz\n");
-    fprintf(stderr, "\n");
-    fprintf(stderr, "Options:\n");
-    fprintf(stderr, "    -p, --pedigree              pedigree information in plink .fam format\n");
-    fprintf(stderr, "    -i, --include               your definition of LoF goes here eg. 'INFO/CSQ[*]~\"stop_gained\" | INFO/CSQ[*]~\"frameshift_variant\" | INFO/CSQ[*]~\"splice_acceptor_variant\" | INFO/CSQ[*]~\"splice_donor_variant\"\n");
-	fprintf(stderr, "    -G, --genes        <file>   four column bed file containing your gene list\n");
-    exit(1);
-}
 
 int knockout(args & a)
 {
@@ -180,22 +174,25 @@ int knockout(args & a)
 		bool diploid = ret==2*nsample;
 		for(int i=0;i<nsample;i++)
 		{
-		    if(!bcf_gt_is_missing(gt_arr[i*2]))
+		    if(!args.phased || bcf_gt_is_phased(gt_arr[i*2]) )
 		    {
-			lof_counts[i]+=bcf_gt_allele(gt_arr[i*2]);
-		    }
-		    if(!bcf_gt_is_missing(gt_arr[i*2+1]))
-		    {
-			lof_counts[i]+=bcf_gt_allele(gt_arr[i*2+1]);
-		    }
-		    if( !bcf_gt_is_missing(gt_arr[i*2]) && !bcf_gt_is_missing(gt_arr[i*2+1]) )
-		    {
-			if(bcf_gt_allele(gt_arr[i*2])>0||bcf_gt_allele(gt_arr[i*2+1])>0)
+			if(!bcf_gt_is_missing(gt_arr[i*2]))
 			{
-			    stringstream ss;
-			    ss  << hdr->samples[i] <<"\t"<<bcf_hdr_int2id(hdr,BCF_DT_CTG,gene_it->getChrom()) <<"\t"<<line->pos<<"\t"<<line->d.allele[0]<<"\t"<<line->d.allele[1]<<bcf_gt_allele(gt_arr[i*2])<<bcf_gt_allele(gt_arr[i*2+1])<<"\t"<<gene_it->getGeneName()<<endl;
-			    lof_gts[i].push_back(ss.str());
+			    lof_counts[i]+=bcf_gt_allele(gt_arr[i*2]);
+			}
+			if(!bcf_gt_is_missing(gt_arr[i*2+1]))
+			{
+			    lof_counts[i]+=bcf_gt_allele(gt_arr[i*2+1]);
+			}
+			if( !bcf_gt_is_missing(gt_arr[i*2]) && !bcf_gt_is_missing(gt_arr[i*2+1]) )
+			{
+			    if(bcf_gt_allele(gt_arr[i*2])>0||bcf_gt_allele(gt_arr[i*2+1])>0)
+			    {
+				stringstream ss;
+				ss  << hdr->samples[i] <<"\t"<<bcf_hdr_int2id(hdr,BCF_DT_CTG,gene_it->getChrom()) <<"\t"<<line->pos<<"\t"<<line->d.allele[0]<<"\t"<<line->d.allele[1]<<"\t"<<bcf_gt_allele(gt_arr[i*2])<<bcf_gt_allele(gt_arr[i*2+1])<<"\t"<<gene_it->getGeneName()<<endl;
+				lof_gts[i].push_back(ss.str());
 //			    cerr << hdr->samples[i] <<"\t"<<bcf_hdr_int2id(hdr,BCF_DT_CTG,gene_it->getChrom()) <<"\t"<<line->pos<<"\t"<<line->d.allele[0]<<"\t"<<line->d.allele[1]<<bcf_gt_allele(gt_arr[i*2])<<bcf_gt_allele(gt_arr[i*2+1])<<"\t"<<gene_it->getGeneName()<<endl;
+			    }
 			}
 		    }
 		}
@@ -219,17 +216,19 @@ int knockout_main(int argc,char **argv)
 	{"pedigree",1,0,'p'},
 	{"include",1,0,'i'},
 	{"genes-file",required_argument,NULL,'G'},
+ 	{"phased",0,0,'P'},	
 	{0,0,0,0}
     };
     a.pedigree=a.inputfile=a.include=a.gene_bedfile=NULL;
-
-    while ((c = getopt_long(argc, argv, "p:i:G:",loptions,NULL)) >= 0)
+    a.phased=0;
+    while ((c = getopt_long(argc, argv, "p:i:G:P",loptions,NULL)) >= 0)
     {
 	switch (c)
 	{
 	case 'p': a.pedigree = optarg; break;
 	case 'i': a.include = optarg; break;
 	case 'G': a.gene_bedfile = optarg; break;
+	case 'P': a.phased = 1; break;
 	}
     }
     optind++;

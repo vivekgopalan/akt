@@ -10,6 +10,7 @@
 typedef struct _args
 {
     char *pedigree,*inputfile,*include,*gene_bedfile;
+    int phased;
 } args;
 
 
