@@ -7,6 +7,8 @@
 #include <vector>
 #include <zlib.h>
 
+
+
 typedef struct _args
 {
     char *pedigree,*inputfile,*include,*gene_bedfile;

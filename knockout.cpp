@@ -1,6 +1,5 @@
 #include "knockout.hpp"
 
-
 KSTREAM_INIT(gzFile, gzread, 16384)
 using namespace std;
 
@@ -126,7 +125,7 @@ int knockout(args & a)
 
     cerr << "Reading input from "<<a.inputfile<<endl;
     cout << "CHROM\tPOS\tREF\tALT\tGENE\tSAMPLE\tGT" <<endl;
-    vector<int> lof_counts(nsample,0);
+    vector< pair<int,int> > lof_counts(nsample, pair<int,int>(0,0) );
     vector< vector<string> > lof_gts(nsample, vector<string>() );
     int prev_rid = -1;
     vector<Gene>::iterator gene_it;
@@ -137,22 +136,28 @@ int knockout(args & a)
 	assert(line->n_allele==2);	
 	if(a.include==NULL||filter_test(filter,line,NULL))
 	{
-	    
 	    if(prev_rid!=-1 && (line->pos > gene_it->getStop() ||line->rid != prev_rid) )//flush knockouts for last gene.
 	    {
 		for(int i=0;i<nsample;i++)
 		{
-		    if(lof_counts[i]>1)
+		    bool is_lof=false;
+		    if(a.phased && lof_counts[i].first>0 && lof_counts[i].second>0)
 		    {
-			assert(lof_counts[i]>=lof_gts[i].size());
+			is_lof=true;
+		    }
+		    if(!a.phased && (lof_counts[i].first+lof_counts[i].second)>1)
+		    {
+			is_lof=true;
+		    }
+		    if(is_lof)
+		    {
 			for(size_t j=0;j<lof_gts[i].size();j++)
 			{
 			    cout << lof_gts[i][j];			    
 			}			
-//			cout << hdr->samples[i] <<"\t"<<bcf_hdr_int2id(hdr,BCF_DT_CTG,gene_it->getChrom()) <<"\t"<<gene_it->getStart()<<			    "\t"<<gene_it->getStop()<<"\t"<<gene_it->getGeneName()<<"\t"<<lof_counts[i] <<endl;
 		    }
 		}
-		lof_counts.assign(nsample,0);
+		lof_counts.assign(nsample,pair<int,int>(0,0) );
 		lof_gts.assign(nsample, vector<string>() );
 	    }
 	    if(line->rid != prev_rid)
@@ -174,24 +179,36 @@ int knockout(args & a)
 		bool diploid = ret==2*nsample;
 		for(int i=0;i<nsample;i++)
 		{
-		    if(!args.phased || bcf_gt_is_phased(gt_arr[i*2]) )
+		    //One of:
+		    //1. we dont care about phasing
+		    //2. the site is phased
+		    //3. the site is hom (inherently phased)
+		    if(!a.phased || bcf_gt_is_phased(gt_arr[i*2+1]) || bcf_gt_allele(gt_arr[i*2])==bcf_gt_allele(gt_arr[i*2+1]))
 		    {
 			if(!bcf_gt_is_missing(gt_arr[i*2]))
 			{
-			    lof_counts[i]+=bcf_gt_allele(gt_arr[i*2]);
+			    lof_counts[i].first += bcf_gt_allele(gt_arr[i*2]);
 			}
 			if(!bcf_gt_is_missing(gt_arr[i*2+1]))
 			{
-			    lof_counts[i]+=bcf_gt_allele(gt_arr[i*2+1]);
+			    lof_counts[i].second += bcf_gt_allele(gt_arr[i*2+1]);
 			}
 			if( !bcf_gt_is_missing(gt_arr[i*2]) && !bcf_gt_is_missing(gt_arr[i*2+1]) )
 			{
 			    if(bcf_gt_allele(gt_arr[i*2])>0||bcf_gt_allele(gt_arr[i*2+1])>0)
 			    {
 				stringstream ss;
-				ss  << hdr->samples[i] <<"\t"<<bcf_hdr_int2id(hdr,BCF_DT_CTG,gene_it->getChrom()) <<"\t"<<line->pos<<"\t"<<line->d.allele[0]<<"\t"<<line->d.allele[1]<<"\t"<<bcf_gt_allele(gt_arr[i*2])<<bcf_gt_allele(gt_arr[i*2+1])<<"\t"<<gene_it->getGeneName()<<endl;
+				ss << hdr->samples[i] <<"\t"<<bcf_hdr_int2id(hdr,BCF_DT_CTG,gene_it->getChrom()) <<"\t"<<line->pos+1<<"\t"<<line->d.allele[0]<<"\t"<<line->d.allele[1];
+				if(bcf_gt_is_phased(gt_arr[i*2+1]))
+				{
+				    ss << "\t"<<bcf_gt_allele(gt_arr[i*2])<<"|"<<bcf_gt_allele(gt_arr[i*2+1]);
+				}
+				else
+				{
+				    ss << "\t"<<bcf_gt_allele(gt_arr[i*2])<<"/"<<bcf_gt_allele(gt_arr[i*2+1]);
+				}
+				ss <<"\t"<<gene_it->getGeneName()<<endl;
 				lof_gts[i].push_back(ss.str());
-//			    cerr << hdr->samples[i] <<"\t"<<bcf_hdr_int2id(hdr,BCF_DT_CTG,gene_it->getChrom()) <<"\t"<<line->pos<<"\t"<<line->d.allele[0]<<"\t"<<line->d.allele[1]<<bcf_gt_allele(gt_arr[i*2])<<bcf_gt_allele(gt_arr[i*2+1])<<"\t"<<gene_it->getGeneName()<<endl;
 			    }
 			}
 		    }
