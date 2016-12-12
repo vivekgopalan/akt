@@ -124,7 +124,7 @@ int knockout(args & a)
     int *gt_arr=(int *)malloc(ngt * sizeof(int));
 
     cerr << "Reading input from "<<a.inputfile<<endl;
-    cout << "CHROM\tPOS\tREF\tALT\tGENE\tSAMPLE\tGT" <<endl;
+    //cout << "CHROM\tPOS\tREF\tALT\tGENE\tSAMPLE\tGT" <<endl;
     vector< pair<int,int> > lof_counts(nsample, pair<int,int>(0,0) );
     vector< vector<string> > lof_gts(nsample, vector<string>() );
     int prev_rid = -1;
